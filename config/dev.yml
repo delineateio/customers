@@ -1,0 +1,19 @@
+server:
+  port: 1102
+  mode: release
+  timeouts:
+    read: 30m
+    write: 30m
+    hammer: 2m
+logging:
+  level: info
+db:
+  customers:
+    type: postgres
+    limits:
+      maxIdle: 5
+      maxOpen: 100
+      maxLifetime: 1h
+    retries:
+      attempts: 5
+      delay: 3s

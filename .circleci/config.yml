@@ -1,0 +1,150 @@
+version: 2.1
+
+orbs:
+  gcp-gcr: circleci/gcp-gcr@0.8.0
+  snyk: snyk/snyk@0.0.10
+  docker: circleci/docker@1.4.0
+
+parameters:
+  ubuntu-image:
+    type: string
+    default: "cimg/base:2020.01"
+  golang-image:
+    type: string
+    default: "cimg/go:1.13"
+  python-image:
+    type: string
+    default: "circleci/python:3.6.9" # Matches VM
+  node-image:
+    type: string
+    default: "circleci/node:lts"
+  postgres-image:
+    type: string
+    default: "postgres:11.6"
+
+commands:
+
+  create_db:
+    steps:
+      - run:
+          name: Create Database
+          command: docker run --name database-debug -p 5432:5432 -e POSTGRES_PASSWORD=postgres -d postgres:11.6
+  run_container:
+    steps:
+      - run:
+          name: Run Container
+          command: docker container run -p 1102:1102 -e DB_USERNAME=postgres -e DB_PASSWORD=postgres -e DB_NAME=postgres "${GOOGLE_REGISTRY}/${GOOGLE_PROJECT}/${DIRTY_IMAGE}"
+          background: true
+jobs:
+  unit_tests:
+    docker:
+      - image: << pipeline.parameters.golang-image >>
+    steps:
+      - checkout
+      - setup_remote_docker
+      - create_db
+      - run:
+          name: Run Unit Tests
+          command: cd ./src && go test -v ./...
+          environment:
+            DIO_ENV: dev
+            DIO_LOCATION: ../config
+            DB_USERNAME: postgres
+            DB_PASSWORD: postgres
+            DB_NAME: postgres
+
+  structure_tests:
+    docker:
+      - image: << pipeline.parameters.ubuntu-image >>
+    steps:
+      - checkout
+      - setup_remote_docker
+      - gcp-gcr/gcr-auth:
+          gcloud-service-key: GOOGLE_CREDENTIALS
+          google-project-id: GOOGLE_PROJECT
+          google-compute-zone: GOOGLE_ZONE
+      - docker/pull:
+          images: "${GOOGLE_REGISTRY}/${GOOGLE_PROJECT}/customers:dirty"
+      - run:
+          name: Install Structure Test
+          command: |
+            curl -LO https://storage.googleapis.com/container-structure-test/latest/container-structure-test-linux-amd64
+            chmod +x container-structure-test-linux-amd64
+      - run:
+          name: Run Structure Tests
+          command: ./container-structure-test-linux-amd64 test --image "${GOOGLE_REGISTRY}/${GOOGLE_PROJECT}/${DIRTY_IMAGE}" --config ./structure.yml
+
+  # TODO: Install Trivy
+  trivy_scan:
+    docker:
+      - image: << pipeline.parameters.ubuntu-image >>
+    steps:
+      - checkout
+      - setup_remote_docker
+      - gcp-gcr/gcr-auth:
+          gcloud-service-key: GOOGLE_CREDENTIALS
+          google-project-id: GOOGLE_PROJECT
+          google-compute-zone: GOOGLE_ZONE
+      - docker/pull:
+          images: "${GOOGLE_REGISTRY}/${GOOGLE_PROJECT}/customers:dirty"
+      - run:
+          name: Install Trivy
+          command: |
+            wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+            echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list.d/trivy.list
+            sudo apt-get update
+            sudo apt-get -y install trivy
+      - run:
+          name: Run Trivy Scan
+          command: trivy image ${GOOGLE_REGISTRY}/${GOOGLE_PROJECT}/customers:dirty
+
+  snyk_scan:
+    docker:
+      - image: << pipeline.parameters.node-image >>
+    steps:
+      - checkout
+      - setup_remote_docker
+      - gcp-gcr/gcr-auth:
+          gcloud-service-key: GOOGLE_CREDENTIALS
+          google-project-id: GOOGLE_PROJECT
+          google-compute-zone: GOOGLE_ZONE
+      - docker/pull:
+          images: "${GOOGLE_REGISTRY}/${GOOGLE_PROJECT}/customers:dirty"
+      - snyk/scan:
+          docker-image-name: ${GOOGLE_REGISTRY}/${GOOGLE_PROJECT}/customers:dirty
+
+workflows:
+  version: 2
+  component:
+    jobs:
+      - unit_tests
+      - gcp-gcr/build-and-push-image:
+          gcloud-service-key: GOOGLE_CREDENTIALS
+          google-compute-zone: GOOGLE_ZONE
+          registry-url: $GOOGLE_REGISTRY
+          google-project-id: GOOGLE_PROJECT
+          image: customers
+          tag: dirty
+          requires:
+            - unit_tests
+      - structure_tests:
+          requires:
+            - gcp-gcr/build-and-push-image
+      - trivy_scan:
+          requires:
+            - gcp-gcr/build-and-push-image
+      - snyk_scan:
+          requires:
+            - gcp-gcr/build-and-push-image
+      - gcp-gcr/add-image-tag:
+          gcloud-service-key: GOOGLE_CREDENTIALS
+          google-compute-zone: GOOGLE_ZONE
+          registry-url: ${GOOGLE_REGISTRY}
+          google-project-id: GOOGLE_PROJECT
+          image: customers
+          source-tag: dirty
+          target-tag: latest
+          requires:
+            - structure_tests
+            - trivy_scan
+            - snyk_scan

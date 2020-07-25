@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customers
+spec:
+  selector:
+    matchLabels:
+      run: customers
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        run: customers
+    spec:
+      imagePullSecrets:
+      - name: registry
+      serviceAccountName: workload
+      containers:
+      - name: api
+        image: customers
+        ports:
+        - containerPort: 1102
+        env:
+        - name: DIO_ENV
+          value: "dev"
+        - name: DIO_LOCATION
+          value: "/config"
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: customers-connection
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: customers-connection
+              key: password
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: customers-connection
+              key: dbname
+        resources:
+          requests:
+            memory: "8Mi"
+            cpu: "10m"
+          limits:
+            memory: "16Mi"
+            cpu: "20m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 1102
+          failureThreshold: 1
+          periodSeconds: 20
+        startupProbe:
+          httpGet:
+            path: /
+            port: 1102
+          failureThreshold: 30
+          periodSeconds: 5
+      - name: database
+        image: gcr.io/cloudsql-docker/gce-proxy:v1.17-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: CONNECTION_NAME
+          valueFrom:
+            secretKeyRef:
+              name: customers-connection
+              key: connection
+        command:
+          - "/cloud_sql_proxy"
+          - "-instances=$(CONNECTION_NAME)=tcp:5432"
+        securityContext:
+          runAsNonRoot: true
+        resources:
+          requests:
+            memory: "8Mi"
+            cpu: "10m"
+          limits:
+            memory: "16Mi"
+            cpu: "20m"
