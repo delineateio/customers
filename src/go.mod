@@ -4,8 +4,7 @@ go 1.14
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.4.1 // indirect
-	github.com/delineateio/mimas/common v0.0.0-20200823204239-4289f7dd3787
-	github.com/delineateio/mimas/server v0.0.0-20200823204239-4289f7dd3787
+	github.com/delineateio/mimas v0.0.0-20200824213858-0ec3be084464
 	github.com/jinzhu/gorm v1.9.16
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kr/text v0.2.0 // indirect

@@ -1,18 +1,18 @@
 package main
 
 import (
-	c "github.com/delineateio/mimas/common"
+	data "github.com/delineateio/mimas/data"
 )
 
 // CustomerRepository that reprents the access to the underlying database
 type CustomerRepository struct {
-	core *c.Repository
+	core *data.Repository
 }
 
 // NewCustomerRepository returns production database access
 func NewCustomerRepository() *CustomerRepository {
 	return &CustomerRepository{
-		core: c.NewRepository("customers"),
+		core: data.NewRepository("customers"),
 	}
 }
 

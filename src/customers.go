@@ -3,7 +3,7 @@ package main
 import (
 	"net/http"
 
-	c "github.com/delineateio/mimas/common"
+	messages "github.com/delineateio/mimas/messages"
 	"github.com/jinzhu/gorm"
 	_ "github.com/swaggo/swag/example/celler/httputil"
 )
@@ -15,7 +15,7 @@ type Customer struct {
 	Surname  string `json:"surname" binding:"required"`
 }
 
-func addCustomer(request *c.Request, response *c.Response) {
+func addCustomer(request *messages.Request, response *messages.Response) {
 	customer := Customer{}
 	err := request.Map(&customer)
 	if err != nil {

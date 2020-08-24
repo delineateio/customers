@@ -5,6 +5,18 @@ server:
     read: 15s
     write: 15s
     hammer: 30m
+  cors:
+    allow_origins:
+      - "*"
+    allow_methods:
+      - GET
+      - POST
+    allow_headers:
+      - Origin
+    expose_headers:
+      - Content-Length
+    allow_credentials: true
+    max_age: 12h
 logging:
   level: warn
 db:

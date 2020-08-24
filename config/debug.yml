@@ -5,6 +5,18 @@ server:
     read: 30m
     write: 30m
     hammer: 2m
+  cors:
+    allow_origins:
+      - https://www.delineate.io
+    allow_methods:
+      - GET
+      - POST
+    allow_headers:
+      - Origin
+    expose_headers:
+      - Content-Length
+    allow_credentials: true
+    max_age: 12h
 logging:
   level: debug
 db:
