@@ -1,17 +1,28 @@
 package main
 
 import (
-	messages "github.com/delineateio/mimas/messages"
-	server "github.com/delineateio/mimas/server"
+	"github.com/delineateio/mimas/handlers"
+	"github.com/delineateio/mimas/msgs"
+	"github.com/delineateio/mimas/server"
+	"gorm.io/gorm"
 )
 
-func main() {
-	// Defines the routes for the service
-	routes := []messages.Route{
-		{Method: "POST", Path: "/customer", Handler: addCustomer},
-	}
+// Customer represents a customer within this specific domain
+type Customer struct {
+	gorm.Model
+	Forename string `json:"forename" binding:"required"`
+	Surname  string `json:"surname" binding:"required"`
+}
 
-	instance := server.NewServer(routes)
-	instance.Repository = NewCustomerRepository()
-	instance.Start()
+func main() {
+	opts, _ := server.NewDefaultOptions()
+	opts.AddRoute("POST", "/customer", createCustomer)
+	opts.AddEntities(&Customer{})
+	s := server.NewServer(opts)
+	s.Listen()
+}
+
+func createCustomer(request *msgs.Request, response *msgs.Response) {
+	var entity interface{} = &Customer{}
+	handlers.Create(request, entity, response)
 }
